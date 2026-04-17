@@ -1,7 +1,7 @@
 import pandas as pd
 import re
 from pyecharts import options as opts
-from pyecharts.charts import Bar, Map, Pie, HeatMap, Line, TreeMap, Page, Timeline
+from pyecharts.charts import Bar, Map, Pie, HeatMap, Line, TreeMap, Page, Timeline , Grid
 from pyecharts.globals import ThemeType
 import os
 
@@ -164,8 +164,9 @@ def draw_trend_line(df):
     return line
 
 def draw_heatmap(df):
-    # 热力图加高至 900px，防止纵轴区域重叠
-    hm = HeatMap(init_opts=opts.InitOpts(width="95vw", height="900px", theme=ThemeType.ESSOS))
+    # 1. 先创建 HeatMap 实例（注意：这里的 init_opts 建议移交给外层的 Grid）
+    hm = HeatMap(init_opts=opts.InitOpts(theme=ThemeType.ESSOS))
+
     months = sorted(df['Month'].unique().tolist())
     regions = df['Region'].unique().tolist()
 
@@ -173,18 +174,43 @@ def draw_heatmap(df):
                  for i, m in enumerate(months) for j, r in enumerate(regions)]
 
     hm.add_xaxis(months)
-    hm.add_yaxis("成交套数", regions, heat_data, label_opts=opts.LabelOpts(is_show=True, position="inside"))
-    hm.set_global_opts(
-        title_opts=opts.TitleOpts(title="武汉各区历月成交热力矩阵 (支持底部和右侧滑动缩放)"),
-        visualmap_opts=opts.VisualMapOpts(max_=df['Volume'].max(), orient="horizontal", pos_left="center", pos_top="5%"),
-        xaxis_opts=opts.AxisOpts(axislabel_opts=opts.LabelOpts(rotate=45)),
-        # 重点：给热力图也加上双向缩放，如果数据太多可以拖动查看
-        datazoom_opts=[
-            opts.DataZoomOpts(is_show=True, xaxis_index=0, type_="slider", range_start=60, range_end=100),
-            opts.DataZoomOpts(is_show=True, yaxis_index=0, type_="slider", pos_left="95%")
-        ]
+    hm.add_yaxis(
+        "成交套数",
+        regions,
+        heat_data,
+        label_opts=opts.LabelOpts(is_show=False)
     )
-    return hm
+
+    # 2. set_global_opts 中删掉 grid_opts
+    hm.set_global_opts(
+        title_opts=opts.TitleOpts(title="武汉各区历月成交热力矩阵", subtitle="点击方块查看数值，下方滑块可缩放"),
+        visualmap_opts=opts.VisualMapOpts(
+            max_=df['Volume'].max(),
+            orient="horizontal",
+            pos_left="center",
+            pos_top="10%"
+        ),
+        xaxis_opts=opts.AxisOpts(
+            axislabel_opts=opts.LabelOpts(rotate=90, font_size=10),
+            interval=0
+        ),
+        datazoom_opts=[
+            opts.DataZoomOpts(is_show=True, type_="slider", range_start=80, range_end=100),
+            opts.DataZoomOpts(is_show=True, type_="inside")
+        ],
+        tooltip_opts=opts.TooltipOpts(is_show=True)
+    )
+
+    # 3. 【核心修复】使用 Grid 容器来承载热力图并设置边距
+    grid = (
+        Grid(init_opts=opts.InitOpts(width="95vw", height="600px", theme=ThemeType.ESSOS))
+        .add(
+            hm,
+            # 这里的 grid_opts 是有效的，用于解决移动端标签截断问题
+            grid_opts=opts.GridOpts(pos_left="15%", pos_bottom="15%", pos_top="25%")
+        )
+    )
+    return grid
 
 # ================= 3. 整合渲染 HTML (注入 CSS 间距) =================
 def generate_dashboard():
