@@ -1,8 +1,9 @@
 # 🏙️ Wuhan Real Estate Analytics & Visualization System
-# (武汉房地产数据抓取与可视化分析系统)
+# (武汉房地产全维数据解析与交互大屏)
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
-![Library](https://img.shields.io/badge/Pyecharts-2.0.3-red.svg)
+![Library](https://img.shields.io/badge/Pyecharts-2.0+-red.svg)
+![Pandas](https://img.shields.io/badge/Pandas-Data_Matrix-green.svg)
 ![Status](https://img.shields.io/badge/Status-Automated-success.svg)
 
 [English Version](#english-version) | [中文版本](#chinese-version)
@@ -12,133 +13,79 @@
 <h2 id="chinese-version">🇨🇳 中文版本</h2>
 
 ### 📖 项目简介
-本项目是一个针对武汉市住建局公开数据的自动化采集与决策支持系统。系统通过自动化脚本从官方渠道抓取每月新建商品房成交数据，经过智能化的行政区划清洗与归一化处理，最终生成包含 6 个核心维度的交互式大屏报表（HTML），为房地产市场分析提供直观的数据支撑。
+本项目是一个针对武汉市住建局公开数据的自动化采集与多维决策分析系统。系统通过自动化脚本精准突破政务报表的“脏数据”与“合并单元格”排版陷阱，重构出 **5大物业类别 × 2大指标（套数/面积）** 的 10 维数据矩阵。最终通过深度注入原生 JS/CSS，生成无视框架渲染缺陷的交互式大屏（包含 60 个独立物理图表），为房地产市场提供 1:1 绝对精确的趋势洞察。
 
-### 🚀 核心工程设计 (Engineering Design)
+### 🚀 核心工程设计 (Hardcore Engineering)
 
-1.  **端到端自动化流水线 (Pipeline Automation)**
-    * 主程序 `main.py` 在完成数据抓取后，通过 `subprocess` 模块物理隔离并调用 `generate_report.py`。
-    * 使用 `sys.executable` 确保跨环境执行时 Python 解释器的一致性，避免虚拟环境路径失效问题。
+1.  **多维矩阵解析与笛卡尔积零填充 (Matrix Extraction & Zero-Padding)**
+    * **痛点**：传统提取在遇到无成交月份时会产生数据断层，导致各图表时间轴帧数不一，引发灾难性的时间线错位。
+    * **解法**：引入 `pandas.MultiIndex` 构建全量月度、区域、类别、指标的笛卡尔积。实施强一致性的零填充（Zero-Padding），确保底层 60 个图表的时间轴拥有 100% 绝对一致的帧数长度。
 
-2.  **鲁棒性数据清洗引擎 (Robust Data Cleaning)**
-    * **区域自动映射**：针对房管局非标准行政区（如：东湖高新、经开、化工区等）建立动态映射字典。
-    * **地理坐标对齐**：通过逻辑清洗将“经济开发区”等非行政单位归并至标准行政区（如：汉南区），确保地图可视化（Geo-Map）实现 100% 坐标识别。
+2.  **解耦式行政区划归一化 (Decoupled Regional Normalization)**
+    * **1:1 财务级对账**：针对柱状图、折线图、热力图，保留“东湖高新”、“武汉经开”等经济区独立地位，确保可视化数据与住建局原始 Excel 分毫不差。
+    * **GIS 动态折叠**：针对 ECharts 底层地图组件不支持非行政区划的缺陷，仅在渲染 Map 时启用动态路由，将经济区数据无缝折叠并入标准行政区（如洪山区、汉南区），防止渲染崩溃。
 
-3.  **高性能并发抓取**
-    * 采用 `requests.Session` 保持连接池，针对住建局分页列表进行快速检索。
-    * 具备模块级容错（Exception Handling），个别页面解析失败不影响全局 Excel 数据库的生成。
+3.  **事件驱动的全局状态隔离 (Event-Driven State Sync)**
+    * **痛点**：Pyecharts 的 `Page` 和 `Tab` 组件存在底层渲染冲突（白屏）及切换标签后时间线状态丢失（月份穿越）Bug。
+    * **解法**：废弃框架原生组件，采用 Python 批量生成 60 个隔离的 Canvas，并在生成的 HTML 尾部暴力注入原生 JS 引擎。通过轮询绑定 `timelinechanged` 与 `datazoom` 事件，实时将用户操作帧数写入浏览器全局内存。切换 Tab 时，利用 `dispatchAction` 或 `setOption` 强行分发状态指令，实现 10 维图表间的“状态完美记忆”。
 
-### 📂 模块详细说明
+4.  **端到端自动化流水线 (Pipeline Automation)**
+    * 采用子进程 (`subprocess`) 物理隔离数据采集（`main.py`）与渲染引擎（`generate_report.py`），确保依赖干净、内存安全释放。
 
-#### 1. `main.py` (数据采集引擎)
-- **分页逻辑**：自动识别 `index.shtml` 与 `index_{num}.shtml` 的切换。
-- **选择器容错**：内置多个 CSS 候选选择器（`.article-content`, `.zfjg_zhengwen` 等），适配政府网站不定期更新的 DOM 结构。
-- **数据存储**：将所有历史月份数据存入多 Sheet 结构的 Excel 文件。
+### 📂 模块说明
+- **`main.py`**：基于 `requests.Session` 的并发爬虫，内置多套 CSS Selector 容错策略，抗击政务网站 DOM 突变。生成包含全量历史的 `.xlsx` 数据库。
+- **`generate_report_v7.py`**：渲染核心。执行 `safe_float` 脏数据清洗、矩阵折叠、并输出携带自定义 Flex 布局卡片（Card UI）的高级交互报告。
 
-#### 2. `generate_report.py` (可视化大屏引擎)
-- **数据转换**：利用 `pandas` 跨 Sheet 汇总数据，实现月度趋势对齐。
-- **可视化矩阵**：
-    - **Timeline Map/Bar**：展示成交热度在时间和空间上的双重演变。
-    - **HeatMap Matrix**：呈现区域间成交密度的对比。
-    - **Trend Line**：支持双向 `DataZoom` 滑动缩放，处理长周期时间线。
-
-### ⚠️ 风险控制与边界说明
-- **WAF 拦截风险**：目前通过伪装 UA 和延时处理。若目标站升级防火墙，需引入代理 IP 池。
-- **行政区划变更**：映射表基于 2024-2026 划分逻辑，若行政区大规模调整，需更新 `REGION_MAPPING`。
-- **数据断流处理**：若住建局源表格格式突变，系统会记录日志并跳过该月，确保程序不挂断。
+### ⚠️ 风险控制与边界约束
+- **DOM 渲染内存压强**：为保证状态隔离，页面挂载了 60 个 ECharts 实例。低配设备在初次切换 Tab 时可能有 50ms 延迟，属正常引擎计算开销。
+- **WAF 拦截策略**：当前依靠指数退避与 UA 伪装。若目标防火墙升级，需横向扩展代理池。
 
 ---
 
 <h2 id="english-version">🇺🇸 English Version</h2>
 
 ### 📖 Overview
-An institutional-grade automation system designed to scrape, clean, and visualize housing transaction data from the Wuhan Housing and Urban-Rural Development Bureau. The system transforms fragmented government tables into a high-fidelity, interactive HTML dashboard.
-
-
+An institutional-grade pipeline designed to scrape, cleanse, and multi-dimensionally visualize housing transaction data from the Wuhan Housing Bureau. It bypasses conventional UI framework limits by injecting native JavaScript state-synchronization engines, transforming messy government spreadsheets into a high-fidelity, 10-dimensional (5 Categories × 2 Metrics) interactive HTML dashboard.
 
 ### 🚀 Key Technical Highlights
 
-1.  **Subprocess Orchestration**
-    * Implements a decoupled architecture where `main.py` triggers `generate_report.py` post-extraction.
-    * Ensures environment consistency across different deployment scenarios (Local/Cloud).
+1.  **Cartesian Product Zero-Padding & Matrix Parsing**
+    * Extracts a complex 10D matrix (Count & Area across Residential, Office, Commercial, etc.).
+    * Utilizes `pandas.MultiIndex` to enforce strict zero-padding. This guarantees that all generated charts share the exact same number of timeline frames, utterly eliminating timeline desynchronization bugs caused by missing monthly data.
 
-2.  **Intelligent Regional Normalization**
-    * Resolves specific "Economic Development Zones" (e.g., East Lake High-tech) into standard administrative districts via a regex-based mapping engine.
-    * This ensures seamless integration with GIS data for accurate Heatmap and Map renderings.
+2.  **Event-Driven Global State Synchronization**
+    * **The Hack**: Bypasses Pyecharts' buggy native `Tab` rendering by outputting 60 isolated canvases and injecting custom JS.
+    * **The Engine**: Polling listeners capture `timelinechanged` and `datazoom` events in real-time, caching the absolute frame index in global memory. Switching tabs triggers a synchronized `setOption` dispatch, forcing the new chart to perfectly resume the user's exact timeline and zoom state.
 
-3.  **Visualization Capabilities**
-    * **Interactive UI**: Uses `pyecharts` with custom CSS injection for improved spacing and responsive layout.
-    - **Multi-dimensional Analysis**: Includes Bar Timeline, Geo-Heatmap, Rosetype Pie charts, and interactive Line charts with `DataZoom`.
+3.  **Decoupled GIS Normalization**
+    * Maintains independent "Economic Zones" (e.g., East Lake High-tech) for Bar/Line/Heatmap charts to ensure 1:1 financial-grade data reconciliation with original government records.
+    * Dynamically folds these zones into standard administrative districts *exclusively* for Geo-Map rendering to prevent ECharts coordinate failures.
 
-### 📂 Module Architecture
-- **`main.py`**: Handles network I/O, session management, and Excel persistence. It features a candidate-based selector logic to handle UI variations on government portals.
-- **`generate_report.py`**: The analytical core. Performs data aggregation across Excel sheets, handles coordinate mapping, and renders the 6-chart dashboard.
+4.  **Subprocess Orchestration**
+    * Complete physical isolation between the scraping engine (`main.py`) and the visualization compiler, ensuring clean memory release and environment stability.
 
-### ⚠️ Risk Assessment
-- **Rate Limiting**: Currently mitigated via exponential backoff.
-- **UI Fragility**: The crawler is sensitive to CSS selector changes; periodic maintenance of DOM pathing is required.
-- **Data Scope**: Focuses on transaction volume; price-action analysis would require additional data endpoints.
+### 🛠️ Setup & Usage
 
----
-
-### 🛠️ Environment & Setup
-1. **Dependencies**:
+1. **Install Dependencies**
    ```bash
    pip install requests beautifulsoup4 pandas openpyxl pyecharts lxml
 
 
-2. 执行程序
-    ```bash
-   python main.py
-   注意：执行 main.py 会在抓取完成后自动通过子进程触发 generate_report.py。
+2.  **Run Engine**
 
-3. 输出产物
-   武汉市新建商品房成交统计-全量.xlsx：包含所有历史抓取数据的原始数据库。
+```Bash
+    python main.py
 
-武汉房地产成交大屏_优化版.html：可交互的图形化可视化分析报告。
+```
 
-⚠️ 风险控制与边界说明
-WAF 拦截风险：目前通过伪装 UA 和延时处理。若目标网站升级防火墙，需引入动态代理池。
 
-行政区划变更：若未来武汉行政区划发生大规模调整，需手动更新脚本内的 REGION_MAPPING 字典。
 
-数据断流处理：若源表格格式发生突变，系统会跳过该月份并记录日志，确保全局程序不崩溃。
+The visualization compiler is triggered automatically via a decoupled subprocess upon successful extraction.
 
-<h2 id="english-version">🇺🇸 English Version</h2>
+Outputs
 
-📖 Overview
-An institutional-grade automation system designed to scrape, clean, and visualize housing transaction data from the Wuhan Housing Bureau. It transforms fragmented government tables into a high-fidelity, interactive HTML dashboard.
+武汉市新建商品房成交统计-全量.xlsx: The consolidated, raw historical database.
 
-🚀 Key Technical Highlights
-Subprocess Orchestration
+武汉房地产成交大屏_终极对账版.html: The 10-dimensional, state-synced visual dashboard.
 
-Implements a decoupled architecture where main.py triggers generate_report.py post-extraction, ensuring process isolation.
-
-Intelligent Regional Normalization
-
-Resolves specific "Economic Zones" into standard administrative districts via a mapping engine for 100% GIS accuracy in map rendering.
-
-Visualization Capabilities
-
-Interactive UI: Uses pyecharts with custom CSS injection for optimized spacing and responsive layouts.
-
-Multi-dimensional Analysis: Includes Bar Timeline, Geo-Heatmap, and interactive Line charts with DataZoom for long-term trends.
-
-🛠️ Setup & Usage
-1. Install Dependencies
-   Bash
-   pip install requests beautifulsoup4 pandas openpyxl pyecharts lxml
-2. Run Engine
-   Bash
-   python main.py
-   The visualization engine is triggered automatically upon successful data extraction.
-
-3. Outputs
-   武汉市新建商品房成交统计-全量.xlsx: Consolidated Excel database.
-
-武汉房地产成交大屏_优化版.html: Interactive visual dashboard.
-
-⚖️ License & Disclaimer
-License: MIT
-
-Disclaimer: This tool is for educational and analytical purposes only. Users must comply with the target website's robots.txt and usage policies.
+⚖️ Disclaimer: This tool is for educational and analytical purposes only. Users must comply with the target website's robots.txt and anti-scraping policies.
